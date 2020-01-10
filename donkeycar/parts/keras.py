@@ -69,7 +69,7 @@ class KerasPilot(object):
         else:
             raise Exception("unknown optimizer type: %s" % optimizer_type)
     
-    def train(self, train_gen, val_gen, 
+    def train(self, train_gen, val_gen,
               saved_model_path, epochs=100, steps=100, train_split=0.8,
               verbose=1, min_delta=.0005, patience=5, use_early_stop=True):
         
@@ -213,6 +213,51 @@ class KerasIMU(KerasPilot):
         throttle = outputs[1]
         return steering[0][0], throttle[0][0]
 
+
+class KerasIMU2(KerasPilot):
+    """
+    # TODO: For 2 imu model
+    A Keras part that take an image and IMU vector as input,
+    outputs steering and throttle
+
+    Note: When training, you will need to vectorize the input from the IMU.
+    Depending on the names you use for imu records, something like this will work:
+
+    X_keys = ['cam/image_array','imu_array']
+    y_keys = ['user/angle', 'user/throttle']
+
+    def rt(rec):
+        rec['imu_array'] = np.array([ rec['imu/acl_x'], rec['imu/acl_y'], rec['imu/acl_z'],
+            rec['imu/gyr_x'], rec['imu/gyr_y'], rec['imu/gyr_z'] ])
+        return rec
+
+    kl = KerasIMU()
+
+    tubgroup = TubGroup(tub_names)
+    train_gen, val_gen = tubgroup.get_train_val_gen(X_keys, y_keys, record_transform=rt,
+                                                    batch_size=cfg.BATCH_SIZE,
+                                                    train_frac=cfg.TRAIN_TEST_SPLIT)
+
+    """
+
+    def __init__(self, model=None, num_outputs=2, num_imu_inputs=12, input_shape=(120, 160, 3), *args, **kwargs):
+        super(KerasIMU2, self).__init__(*args, **kwargs)
+        self.num_imu_inputs = num_imu_inputs
+        self.model = default_imu(num_outputs=num_outputs, num_imu_inputs=num_imu_inputs, input_shape=input_shape)
+        self.compile()
+
+    def compile(self):
+        self.model.compile(optimizer=self.optimizer,
+                           loss='mse')
+
+    def run(self, img_arr, accel_x, accel_y, accel_z, gyr_x, gyr_y, gyr_z):
+        # TODO: would be nice to take a vector input array.
+        img_arr = img_arr.reshape((1,) + img_arr.shape)
+        imu_arr = np.array([accel_x, accel_y, accel_z, gyr_x, gyr_y, gyr_z]).reshape(1, self.num_imu_inputs)
+        outputs = self.model.predict([img_arr, imu_arr])
+        steering = outputs[0]
+        throttle = outputs[1]
+        return steering[0][0], throttle[0][0]
 
 class KerasBehavioral(KerasPilot):
     '''
@@ -358,6 +403,7 @@ def default_imu(num_outputs, num_imu_inputs, input_shape):
     #input_shape = adjust_input_shape(input_shape, roi_crop)
 
     img_in = Input(shape=input_shape, name='img_in')
+    # The input is an array of imu input
     imu_in = Input(shape=(num_imu_inputs,), name="imu_in")
     
     x = img_in
