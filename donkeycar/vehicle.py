@@ -189,6 +189,8 @@ class Vehicle:
                 self.profiler.on_part_start(p)
                 # get inputs from memory
                 inputs = self.mem.get(entry['inputs'])
+                #print(p)
+                #print(inputs)
                 # run the part
                 if entry.get('thread'):
                     outputs = p.run_threaded(*inputs)

@@ -240,7 +240,7 @@ class KerasIMU2(KerasPilot):
 
     """
 
-    def __init__(self, model=None, num_outputs=2, num_imu_inputs=12, input_shape=(120, 160, 3), *args, **kwargs):
+    def __init__(self, model=None, num_outputs=2, num_imu_inputs=12, input_shape=(224, 224, 3), *args, **kwargs):
         super(KerasIMU2, self).__init__(*args, **kwargs)
         self.num_imu_inputs = num_imu_inputs
         self.model = default_imu(num_outputs=num_outputs, num_imu_inputs=num_imu_inputs, input_shape=input_shape)
@@ -257,6 +257,8 @@ class KerasIMU2(KerasPilot):
         img_arr = img_arr.reshape((1,) + img_arr.shape)
         imu_arr = np.array([accel_x1, accel_y1, accel_z1, gyr_x1, gyr_y1, gyr_z1,
                             accel_x2, accel_y2, accel_z2, gyr_x2, gyr_y2, gyr_z2,]).reshape(1, self.num_imu_inputs)
+        #print("img_arr shape: ",img_arr.shape)
+        #print("imu_arr shape: ",imu_arr.shape)
         outputs = self.model.predict([img_arr, imu_arr])
         steering = outputs[0]
         throttle = outputs[1]
