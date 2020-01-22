@@ -321,54 +321,6 @@ class KerasIMU2(KerasPilot):
         throttle = outputs[1]
         return steering[0][0], throttle[0][0]
 
-class Keras_IMU_LSTM_Categorical(KerasPilot):
-    """
-    LSTM with 7 states
-    """
-    def __init__(self, image_w =224, image_h=224, image_d=3, seq_length=7, num_outputs=2, *args, **kwargs):
-        super(Keras_IMU_LSTM_Categorical, self).__init__(*args, **kwargs)
-        image_shape = (image_h, image_w, image_d)
-        self.seq_length = seq_length
-        self.model = lstm_imu_categorical(input_dim=(seq_length,)+image_shape)
-        self.model.optimizer = Adam(lr=0.0001, clipnorm=1.0)
-        self.compile()
-
-        # done in manage.py with func load_model()
-        #self.model.load_weights("/home/donkey/sandbox/d2/models/lstm_categorical_20190525154029.h5")
-
-        print("Weights load successfully!")
-
-    def compile(self):
-        self.model.compile(optimizer=self.optimizer,
-                           loss={'mse': 'categorical_crossentropy', 'throttle_out': 'mean_absolute_error'},
-                           loss_weights={'angle_out': 0.6, 'throttle_out': 0.5})
-
-    def run(self, input_state):
-
-        # Hack to get lane segmentation
-        #img_arr = segment_lane(img_arr)
-
-        # input:
-
-        input_state = input_state.reshape(1, input_state.shape[0], input_state.shape[1], input_state.shape[2], input_state.shape[3])
-        angle_binned, throttle = self.model.predict(input_state)
-        print("Raw prediction: ", angle_binned)
-        print('throttle', throttle)
-        #angle_certainty = max(angle_binned[0])
-        #angle_unbinned = dk.utils.linear_unbin(angle_binned)
-        print("Raw prediction shape: ", angle_binned[0].shape)
-        b = np.argmax(angle_binned[0])
-        print("Argmax: ", b)
-        angle_unbinned = b * (2 / 14) - 1
-
-        # Constant Throttle for now
-        # throttle = 0.7
-
-        print("NN output: ", angle_unbinned, throttle)
-
-        return angle_unbinned, throttle
-
-
 
 def adjust_input_shape(input_shape, roi_crop):
     height = input_shape[0]
@@ -816,31 +768,86 @@ def default_latent(num_outputs, input_shape):
 
 # Custom Model
 
-def lstm_imu_categorical(input_dim=(7, 224, 224, 3)):
+class Keras_IMU_LSTM_Categorical(KerasPilot):
+    """
+    LSTM with 7 states
+    """
+    def __init__(self, image_w =224, image_h=224, image_d=3, seq_length=7, num_imu_input=12, *args, **kwargs):
+        super(Keras_IMU_LSTM_Categorical, self).__init__(*args, **kwargs)
+        image_shape = (image_h, image_w, image_d)
+        self.seq_length = seq_length
+        self.model = lstm_imu_categorical(img_in=(image_w,image_h,image_d),imu_in=num_imu_input)
+        self.model.optimizer = Adam(lr=0.0001, clipnorm=1.0)
+        self.compile()
+
+        # done in manage.py with func load_model()
+        #self.model.load_weights("/home/donkey/sandbox/d2/models/lstm_categorical_20190525154029.h5")
+
+        print("Model load successfully!")
+
+    def compile(self):
+        self.model.compile(optimizer=self.optimizer,
+                           loss={'angle_out': 'categorical_crossentropy', 'throttle_out': 'mean_absolute_error'},
+                           loss_weights={'angle_out': 0.6, 'throttle_out': 0.5})
+
+    def run(self, input_state):
+
+        # Hack to get lane segmentation
+        #img_arr = segment_lane(img_arr)
+
+        # input:
+
+        input_state = input_state.reshape(1, input_state.shape[0], input_state.shape[1], input_state.shape[2], input_state.shape[3])
+        angle_binned, throttle = self.model.predict(input_state)
+        print("Raw prediction: ", angle_binned)
+        print('throttle', throttle)
+        #angle_certainty = max(angle_binned[0])
+        #angle_unbinned = dk.utils.linear_unbin(angle_binned)
+        print("Raw prediction shape: ", angle_binned[0].shape)
+        b = np.argmax(angle_binned[0])
+        print("Argmax: ", b)
+        angle_unbinned = b * (2 / 14) - 1
+
+        # Constant Throttle for now
+        # throttle = 0.7
+
+        print("NN output: ", angle_unbinned, throttle)
+
+        return angle_unbinned, throttle
+
+def lstm_imu_categorical(img_in=(224, 224, 3), imu_in=12, seq_length=7):
     # we now expect that cropping done elsewhere. we will adjust our expeected image size here:
     # input_shape = adjust_input_shape(input_shape, roi_crop)
-
+    input_dim = (seq_length,) + img_in
     img_in = Input(shape=input_dim,
                    name='img_in')  # First layer, input layer, Shape comes from camera.py resolution, RGB
+
+    imu_in = Input(shape=(seq_length, imu_in), name="imu_in")
+
     x = TD(Convolution2D(24, (5, 5), strides=(2, 2), activation='relu'))(img_in)
     x = TD(Convolution2D(32, (5, 5), strides=(2, 2), activation='relu'))(x)
     x = TD(Convolution2D(32, (3, 3), strides=(2, 2), activation='relu'))(x)
     x = TD(Convolution2D(32, (3, 3), strides=(2, 2), activation='relu'))(x)
     x = TD(Flatten())(x)
-    x = TD(Dense(100, activation='relu'))
+    x = TD(Dense(64, activation='relu'))(x)
 
-    x = LSTM(128, return_sequences=True, activation='tanh')(x)
-    x = LSTM(128, return_sequences=False, activation='tanh')(x)
+    y = TD(Dense(14, activation='relu'))(imu_in)
+    y = TD(Dense(14, activation='relu'))(y)
 
-    x = Dense(64, activation='relu')(x)
-    x = Dense(32, activation='relu')(x)
+    z = concatenate([x, y])
+
+    z = LSTM(128, return_sequences=True, activation='tanh')(z)
+    z = LSTM(128, return_sequences=False, activation='tanh')(z)
+
+    z = Dense(64, activation='relu')(z)
+    z = Dense(32, activation='relu')(z)
 
     # Steering Categorical
-    angle_out = Dense(15, activation='softmax', name='angle_out')(x)
+    angle_out = Dense(15, activation='softmax', name='angle_out')(z)
 
     # Throttle
-    throttle_out = Dense(1, activation='relu', name='throttle_out')(x)
+    throttle_out = Dense(1, activation='relu', name='throttle_out')(z)
 
-    model = Model(inputs=[img_in], outputs=[angle_out, throttle_out])
+    model = Model(inputs=[img_in,imu_in], outputs=[angle_out, throttle_out])
 
     return model
