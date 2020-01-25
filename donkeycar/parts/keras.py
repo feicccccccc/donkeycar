@@ -790,15 +790,21 @@ class Keras_IMU_LSTM_Categorical(KerasPilot):
                            loss={'angle_out': 'categorical_crossentropy', 'throttle_out': 'mean_absolute_error'},
                            loss_weights={'angle_out': 0.6, 'throttle_out': 0.5})
 
-    def run(self, input_state):
+    def run(self, img_seq,
+            accel_x1, accel_y1, accel_z1, gyr_x1, gyr_y1, gyr_z1,
+            accel_x2, accel_y2, accel_z2, gyr_x2, gyr_y2, gyr_z2):
 
         # Hack to get lane segmentation
-        #img_arr = segment_lane(img_arr)
+        #img_seq = segment_lane(img_seq)
 
         # input:
 
-        input_state = input_state.reshape(1, input_state.shape[0], input_state.shape[1], input_state.shape[2], input_state.shape[3])
-        angle_binned, throttle = self.model.predict(input_state)
+        print(img_seq.shape)
+
+        img_seq = img_seq.reshape(1, img_seq.shape[0], img_seq.shape[1], img_seq.shape[2], img_seq.shape[3])
+        imu_arr = np.array([accel_x1, accel_y1, accel_z1, gyr_x1, gyr_y1, gyr_z1,
+                            accel_x2, accel_y2, accel_z2, gyr_x2, gyr_y2, gyr_z2, ]).reshape(1, self.num_imu_inputs)
+        angle_binned, throttle = self.model.predict([img_seq,imu_arr])
         print("Raw prediction: ", angle_binned)
         print('throttle', throttle)
         #angle_certainty = max(angle_binned[0])
