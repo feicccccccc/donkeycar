@@ -776,6 +776,7 @@ class Keras_IMU_LSTM_Categorical(KerasPilot):
         super(Keras_IMU_LSTM_Categorical, self).__init__(*args, **kwargs)
         image_shape = (image_h, image_w, image_d)
         self.seq_length = seq_length
+        self.num_imu_input = num_imu_input
         self.model = lstm_imu_categorical(img_in=(image_w,image_h,image_d),imu_in=num_imu_input)
         self.model.optimizer = Adam(lr=0.0001, clipnorm=1.0)
         self.compile()
