@@ -804,7 +804,7 @@ class Keras_IMU_LSTM_Categorical(KerasPilot):
 
         img_seq = img_seq.reshape(1, img_seq.shape[0], img_seq.shape[1], img_seq.shape[2], img_seq.shape[3])
         imu_arr = np.array([accel_x1, accel_y1, accel_z1, gyr_x1, gyr_y1, gyr_z1,
-                            accel_x2, accel_y2, accel_z2, gyr_x2, gyr_y2, gyr_z2, ]).reshape(1, self.num_imu_inputs)
+                            accel_x2, accel_y2, accel_z2, gyr_x2, gyr_y2, gyr_z2, ]).reshape(1, self.num_imu_input)
         angle_binned, throttle = self.model.predict([img_seq,imu_arr])
         print("Raw prediction: ", angle_binned)
         print('throttle', throttle)
