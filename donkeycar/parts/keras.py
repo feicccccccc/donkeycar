@@ -798,19 +798,19 @@ class Keras_IMU_LSTM_Categorical(KerasPilot):
 
         # input:
 
-        print(img_seq.shape)
-        print(imu_seq.shape)
+        #print(img_seq.shape)
+        #print(imu_seq.shape)
 
         img_seq = img_seq.reshape(1, img_seq.shape[0], img_seq.shape[1], img_seq.shape[2], img_seq.shape[3])
         imu_seq = imu_seq.reshape(1, imu_seq.shape[0],imu_seq.shape[1])
         angle_binned, throttle_binned = self.model.predict([img_seq,imu_seq])
-        print("Raw prediction: ", angle_binned)
-        print('Raw throttle', throttle_binned)
+        #print("Raw prediction: ", angle_binned)
+        #print('Raw throttle', throttle_binned)
 
         angle = dk.utils.linear_unbin(angle_binned)
         throttle = dk.utils.linear_unbin(throttle_binned, N=31, offset=0, R=0.5)
 
-        print("NN output: ", angle, throttle)
+        #print("NN output: ", angle, throttle)
 
         return angle, throttle
 
