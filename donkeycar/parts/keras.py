@@ -808,7 +808,7 @@ class Keras_IMU_LSTM_Categorical(KerasPilot):
         print('Raw throttle', throttle_binned)
 
         angle = dk.utils.linear_unbin(angle_binned)
-        throttle = dk.utils.linear_unbin(throttle_binned,20,0,0.5)
+        throttle = dk.utils.linear_unbin(throttle_binned, N=31, offset=0, R=0.5)
 
         print("NN output: ", angle, throttle)
 
@@ -857,7 +857,7 @@ def lstm_imu_categorical(img_in=(224, 224, 3), imu_in=12, seq_length=7):
     angle_out = Dense(15, activation='softmax', name='angle_out')(z)
 
     # Throttle
-    throttle_out = Dense(20, activation='softmax', name='throttle_out')(z)
+    throttle_out = Dense(31, activation='softmax', name='throttle_out')(z)
 
     model = Model(inputs=[img_in,imu_in], outputs=[angle_out, throttle_out])
 
