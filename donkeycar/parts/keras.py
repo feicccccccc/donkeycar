@@ -788,8 +788,8 @@ class Keras_IMU_LSTM_Categorical(KerasPilot):
 
     def compile(self):
         self.model.compile(optimizer=self.optimizer,
-                           loss={'angle_out': 'categorical_crossentropy', 'throttle_out': 'mean_absolute_error'},
-                           loss_weights={'angle_out': 0.6, 'throttle_out': 0.5})
+                           loss={'angle_out': 'categorical_crossentropy', 'throttle_out': 'categorical_crossentropy'},
+                           loss_weights={'angle_out': 0.5, 'throttle_out': 0.5})
 
     def run(self, img_seq, imu_seq):
 
@@ -851,7 +851,7 @@ def lstm_imu_categorical(img_in=(224, 224, 3), imu_in=12, seq_length=7):
     angle_out = Dense(15, activation='softmax', name='angle_out')(z)
 
     # Throttle
-    throttle_out = Dense(1, activation='relu', name='throttle_out')(z)
+    throttle_out = Dense(20, activation='softmax', name='throttle_out')(z)
 
     model = Model(inputs=[img_in,imu_in], outputs=[angle_out, throttle_out])
 
