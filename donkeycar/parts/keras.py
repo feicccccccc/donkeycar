@@ -803,26 +803,22 @@ class Keras_IMU_LSTM_Categorical(KerasPilot):
 
         img_seq = img_seq.reshape(1, img_seq.shape[0], img_seq.shape[1], img_seq.shape[2], img_seq.shape[3])
         imu_seq = imu_seq.reshape(1, imu_seq.shape[0],imu_seq.shape[1])
-        angle_binned, throttle = self.model.predict([img_seq,imu_seq])
+        angle_binned, throttle_binned = self.model.predict([img_seq,imu_seq])
         print("Raw prediction: ", angle_binned)
-        print('throttle', throttle)
-        #angle_certainty = max(angle_binned[0])
-        #angle_unbinned = dk.utils.linear_unbin(angle_binned)
-        print("Raw prediction shape: ", angle_binned[0].shape)
-        b = np.argmax(angle_binned[0])
-        print("Argmax: ", b)
-        angle_unbinned = b * (2 / 14) - 1
+        print('Raw throttle', throttle_binned)
 
-        # Constant Throttle for now
-        # throttle = 0.7
+        angle = dk.utils.linear_unbin(angle_binned)
+        throttle = dk.utils.linear_unbin(throttle_binned,20,0,0.5)
 
-        print("NN output: ", angle_unbinned, throttle)
+        print("NN output: ", angle, throttle)
 
-        return angle_unbinned, throttle
+        return angle, throttle
 
 def lstm_imu_categorical(img_in=(224, 224, 3), imu_in=12, seq_length=7):
     # we now expect that cropping done elsewhere. we will adjust our expeected image size here:
     # input_shape = adjust_input_shape(input_shape, roi_crop)
+
+    drop = 0.3
     input_dim = (seq_length,) + img_in
     img_in = Input(shape=input_dim,
                    name='img_in')  # First layer, input layer, Shape comes from camera.py resolution, RGB
@@ -830,14 +826,22 @@ def lstm_imu_categorical(img_in=(224, 224, 3), imu_in=12, seq_length=7):
     imu_in = Input(shape=(seq_length, imu_in), name="imu_in")
 
     x = TD(Convolution2D(24, (5, 5), strides=(2, 2), activation='relu'))(img_in)
+    x = Dropout(drop)(x)
     x = TD(Convolution2D(32, (5, 5), strides=(2, 2), activation='relu'))(x)
+    x = Dropout(drop)(x)
     x = TD(Convolution2D(32, (3, 3), strides=(2, 2), activation='relu'))(x)
+    x = Dropout(drop)(x)
     x = TD(Convolution2D(32, (3, 3), strides=(2, 2), activation='relu'))(x)
+    x = Dropout(drop)(x)
     x = TD(Flatten())(x)
+    x = Dropout(drop)(x)
     x = TD(Dense(64, activation='relu'))(x)
+    x = Dropout(drop)(x)
 
     y = TD(Dense(14, activation='relu'))(imu_in)
+    y = Dropout(drop)(y)
     y = TD(Dense(14, activation='relu'))(y)
+    y = Dropout(drop)(y)
 
     z = concatenate([x, y])
 
@@ -845,7 +849,9 @@ def lstm_imu_categorical(img_in=(224, 224, 3), imu_in=12, seq_length=7):
     z = LSTM(128, return_sequences=False, activation='tanh')(z)
 
     z = Dense(64, activation='relu')(z)
+    z = Dropout(drop)(z)
     z = Dense(32, activation='relu')(z)
+    z = Dropout(drop)(z)
 
     # Steering Categorical
     angle_out = Dense(15, activation='softmax', name='angle_out')(z)
