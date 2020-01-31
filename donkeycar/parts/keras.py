@@ -862,3 +862,95 @@ def lstm_imu_categorical(img_in=(224, 224, 3), imu_in=12, seq_length=7):
     model = Model(inputs=[img_in,imu_in], outputs=[angle_out, throttle_out])
 
     return model
+
+class Keras_IMU_LSTM_Linear(KerasPilot):
+    """
+    LSTM with 7 states
+    """
+    def __init__(self, image_w =224, image_h=224, image_d=3, seq_length=7, num_imu_input=12, *args, **kwargs):
+        super(Keras_IMU_LSTM_Linear, self).__init__(*args, **kwargs)
+        image_shape = (image_h, image_w, image_d)
+        self.seq_length = seq_length
+        self.num_imu_input = num_imu_input
+        self.model = lstm_imu_linear(img_in=(image_w,image_h,image_d),imu_in=num_imu_input)
+        self.model.optimizer = Adam(lr=0.0001, clipnorm=1.0)
+        self.compile()
+
+        # done in manage.py with func load_model()
+        #self.model.load_weights("/home/donkey/sandbox/d2/models/lstm_categorical_20190525154029.h5")
+
+        print("Model load successfully!")
+
+    def compile(self):
+        self.model.compile(optimizer=self.optimizer,
+                           loss={'angle_out': 'categorical_crossentropy', 'throttle_out': 'categorical_crossentropy'},
+                           loss_weights={'angle_out': 0.5, 'throttle_out': 0.5})
+
+    def run(self, img_seq, imu_seq):
+
+        # Hack to get lane segmentation
+        #img_seq = segment_lane(img_seq)
+
+        # input:
+
+        #print(img_seq.shape)
+        #print(imu_seq.shape)
+
+        img_seq = img_seq.reshape(1, img_seq.shape[0], img_seq.shape[1], img_seq.shape[2], img_seq.shape[3])
+        imu_seq = imu_seq.reshape(1, imu_seq.shape[0],imu_seq.shape[1])
+        angle, throttle = self.model.predict([img_seq,imu_seq])
+        #print("Raw prediction: ", angle_binned)
+        #print('Raw throttle', throttle_binned)
+
+        print("NN output: ", angle, throttle)
+
+        return angle, throttle
+
+def lstm_imu_linear(img_in=(224, 224, 3), imu_in=12, seq_length=7):
+    # we now expect that cropping done elsewhere. we will adjust our expeected image size here:
+    # input_shape = adjust_input_shape(input_shape, roi_crop)
+
+    drop = 0.3
+    input_dim = (seq_length,) + img_in
+    img_in = Input(shape=input_dim,
+                   name='img_in')  # First layer, input layer, Shape comes from camera.py resolution, RGB
+
+    imu_in = Input(shape=(seq_length, imu_in), name="imu_in")
+
+    x = TD(Convolution2D(24, (5, 5), strides=(2, 2), activation='relu'))(img_in)
+    x = Dropout(drop)(x)
+    x = TD(Convolution2D(32, (5, 5), strides=(2, 2), activation='relu'))(x)
+    x = Dropout(drop)(x)
+    x = TD(Convolution2D(32, (3, 3), strides=(2, 2), activation='relu'))(x)
+    x = Dropout(drop)(x)
+    x = TD(Convolution2D(32, (3, 3), strides=(2, 2), activation='relu'))(x)
+    x = Dropout(drop)(x)
+    x = TD(Flatten())(x)
+    x = Dropout(drop)(x)
+    x = TD(Dense(64, activation='relu'))(x)
+    x = Dropout(drop)(x)
+
+    y = TD(Dense(14, activation='relu'))(imu_in)
+    y = Dropout(drop)(y)
+    y = TD(Dense(14, activation='relu'))(y)
+    y = Dropout(drop)(y)
+
+    z = concatenate([x, y])
+
+    z = LSTM(128, return_sequences=True, activation='tanh')(z)
+    z = LSTM(128, return_sequences=False, activation='tanh')(z)
+
+    z = Dense(64, activation='relu')(z)
+    z = Dropout(drop)(z)
+    z = Dense(32, activation='relu')(z)
+    z = Dropout(drop)(z)
+
+    # Steering Categorical
+    angle_out = Dense(1, activation='linear', name='angle_out')(z)
+
+    # Throttle
+    throttle_out = Dense(1, activation='linear', name='throttle_out')(z)
+
+    model = Model(inputs=[img_in,imu_in], outputs=[angle_out, throttle_out])
+
+    return model
