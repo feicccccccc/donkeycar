@@ -883,7 +883,7 @@ class Keras_IMU_LSTM_Linear(KerasPilot):
 
     def compile(self):
         self.model.compile(optimizer=self.optimizer,
-                           loss={'angle_out': 'categorical_crossentropy', 'throttle_out': 'categorical_crossentropy'},
+                           loss={'angle_out': 'mean_squared_error', 'throttle_out': 'mean_squared_error'},
                            loss_weights={'angle_out': 0.5, 'throttle_out': 0.5})
 
     def run(self, img_seq, imu_seq):
