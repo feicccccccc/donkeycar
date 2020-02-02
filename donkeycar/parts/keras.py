@@ -810,7 +810,7 @@ class Keras_IMU_LSTM_Categorical(KerasPilot):
         angle = dk.utils.linear_unbin(angle_binned, N=31, offset=-1,R=2)
         throttle = dk.utils.linear_unbin(throttle_binned, N=31, offset=0, R=0.4)
 
-        #print("NN output: ", angle, throttle)
+        print("NN output: ", angle, throttle)
 
         return angle, throttle
 
@@ -990,13 +990,13 @@ class Keras_IMU_LSTM_Many2Many_Categorical(KerasPilot):
         img_seq = img_seq.reshape(1, img_seq.shape[0], img_seq.shape[1], img_seq.shape[2], img_seq.shape[3])
         imu_seq = imu_seq.reshape(1, imu_seq.shape[0],imu_seq.shape[1])
         angle_binned, throttle_binned = self.model.predict([img_seq,imu_seq])
-        #print("Raw prediction: ", angle_binned)
-        #print('Raw throttle', throttle_binned)
+        #print("Raw angle: ", angle_binned, "Shape: ", angle_binned.shape)
+        #print('Raw throttle', throttle_binned, "Shape: ", throttle_binned.shape)
 
-        angle = dk.utils.linear_unbin(angle_binned, N=31, offset=-1, R=2)
-        throttle = dk.utils.linear_unbin(throttle_binned, N=31, offset=0, R=0.4)
+        angle = dk.utils.linear_unbin(angle_binned[:,0,:], N=31, offset=-1, R=2)
+        throttle = dk.utils.linear_unbin(throttle_binned[:,0,:], N=31, offset=0, R=0.4)
 
-        #print("NN output: ", angle, throttle)
+        print("NN output: ", angle, throttle)
 
         return angle, throttle
 
