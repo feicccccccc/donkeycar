@@ -713,7 +713,7 @@ class KerasLatent(KerasPilot):
         })
 
     def run(self, img_arr):
-        img_arr = img_arr.reshape((1,) + img_arr.shape)
+        img_arr = img_arr.rteshape((1,) + img_arr.shape)
         outputs = self.model.predict(img_arr)
         steering = outputs[1]
         throttle = outputs[2]
@@ -804,8 +804,8 @@ class Keras_IMU_LSTM_Categorical(KerasPilot):
         img_seq = img_seq.reshape(1, img_seq.shape[0], img_seq.shape[1], img_seq.shape[2], img_seq.shape[3])
         imu_seq = imu_seq.reshape(1, imu_seq.shape[0],imu_seq.shape[1])
         angle_binned, throttle_binned = self.model.predict([img_seq,imu_seq])
-        #print("Raw prediction: ", angle_binned)
-        #print('Raw throttle', throttle_binned)
+        #print("Raw prediction: ", angle_binned, "shape: ", angle_binned.shape)
+        #print('Raw throttle', throttle_binned, "shape: ", throttle_binned.shape)
 
         angle = dk.utils.linear_unbin(angle_binned, N=31, offset=-1,R=2)
         throttle = dk.utils.linear_unbin(throttle_binned, N=31, offset=0, R=0.4)
@@ -990,8 +990,9 @@ class Keras_IMU_LSTM_Many2Many_Categorical(KerasPilot):
         img_seq = img_seq.reshape(1, img_seq.shape[0], img_seq.shape[1], img_seq.shape[2], img_seq.shape[3])
         imu_seq = imu_seq.reshape(1, imu_seq.shape[0],imu_seq.shape[1])
         angle_binned, throttle_binned = self.model.predict([img_seq,imu_seq])
-        #print("Raw angle: ", angle_binned, "Shape: ", angle_binned.shape)
-        #print('Raw throttle', throttle_binned, "Shape: ", throttle_binned.shape)
+
+        #print("Raw angle: ", angle_binned, "Shape: ", angle_binned[:,0,:].shape)
+        #print('Raw throttle', throttle_binned, "Shape: ", throttle_binned[:,0,:].shape)
 
         angle = dk.utils.linear_unbin(angle_binned[:,0,:], N=31, offset=-1, R=2)
         throttle = dk.utils.linear_unbin(throttle_binned[:,0,:], N=31, offset=0, R=0.4)
@@ -1045,5 +1046,107 @@ def lstm_imu_many2many_categorical(img_in=(224, 224, 3), imu_in=12, seq_length=7
     throttle_out = TD(Dense(31, activation='softmax'),name='throttle_out')(z)
 
     model = Model(inputs=[img_in,imu_in], outputs=[angle_out, throttle_out])
+
+    return model
+
+class Keras_IMU_LSTM_Many2Many_IMUPRED(KerasPilot):
+    """
+    LSTM with 7 states
+    """
+    def __init__(self, image_w =224, image_h=224, image_d=3, seq_length=7, future_step = 5, num_imu_input=12, *args, **kwargs):
+        super(Keras_IMU_LSTM_Many2Many_IMUPRED, self).__init__(*args, **kwargs)
+        self.image_shape = (image_h, image_w, image_d)
+        self.seq_length = seq_length
+        self.future_step = future_step
+        self.num_imu_input = num_imu_input
+        self.model = lstm_imu_many2many_imupred(img_in = self.image_shape,
+                                                imu_in = self.num_imu_input,
+                                                seq_length = self.seq_length,
+                                                future_step = self.future_step
+                                                )
+        self.model.optimizer = Adam(lr=0.0001, clipnorm=1.0)
+        self.compile()
+
+        print("Model load successfully!")
+
+    def compile(self):
+        self.model.compile(optimizer=self.optimizer,
+                           loss={'angle_out': 'categorical_crossentropy',
+                                 'throttle_out': 'categorical_crossentropy',
+                                 'imu_out': 'mean_squared_error' },
+                           loss_weights={'angle_out': 0.5, 'throttle_out': 0.5})
+
+    def run(self, img_seq, imu_seq):
+
+        # Hack to get lane segmentation
+        #img_seq = segment_lane(img_seq)
+
+        # input:
+
+        #print(img_seq.shape)
+        #print(imu_seq.shape)
+
+        img_seq = img_seq.reshape(1, img_seq.shape[0], img_seq.shape[1], img_seq.shape[2], img_seq.shape[3])
+        imu_seq = imu_seq.reshape(1, imu_seq.shape[0],imu_seq.shape[1])
+        angle_binned, throttle_binned, imu_pred = self.model.predict([img_seq,imu_seq])
+
+        #print("Raw angle: ", angle_binned, "Shape: ", angle_binned[:,0,:].shape)
+        #print('Raw throttle', throttle_binned, "Shape: ", throttle_binned[:,0,:].shape)
+
+        angle = dk.utils.linear_unbin(angle_binned[:,0,:], N=31, offset=-1, R=2)
+        throttle = dk.utils.linear_unbin(throttle_binned[:,0,:], N=31, offset=0, R=0.4)
+
+        print("NN output: ", angle, throttle)
+
+        return angle, throttle
+
+def lstm_imu_many2many_imupred(img_in=(224, 224, 3), imu_in=12, seq_length=7, future_step = 5):
+
+    drop = 0.3
+    input_dim = (seq_length,) + img_in
+    img_in = Input(shape=input_dim,
+                   name='img_in')  # First layer, input layer, Shape comes from camera.py resolution, RGB
+
+    imu_in = Input(shape=(seq_length, imu_in), name="imu_in")
+
+    x = TD(Convolution2D(24, (5, 5), strides=(2, 2), activation='relu'))(img_in)
+    x = Dropout(drop)(x)
+    x = TD(Convolution2D(32, (5, 5), strides=(2, 2), activation='relu'))(x)
+    x = Dropout(drop)(x)
+    x = TD(Convolution2D(32, (3, 3), strides=(2, 2), activation='relu'))(x)
+    x = Dropout(drop)(x)
+    x = TD(Convolution2D(32, (3, 3), strides=(2, 2), activation='relu'))(x)
+    x = Dropout(drop)(x)
+    x = TD(Flatten())(x)
+    x = Dropout(drop)(x)
+    x = TD(Dense(64, activation='relu'))(x)
+    x = Dropout(drop)(x)
+
+    y = TD(Dense(14, activation='relu'))(imu_in)
+    y = Dropout(drop)(y)
+    y = TD(Dense(14, activation='relu'))(y)
+    y = Dropout(drop)(y)
+
+    z = concatenate([x, y])
+
+    z = LSTM(128, return_sequences=False, activation='tanh')(z)
+    z = RepeatVector(future_step)(z)
+    z = LSTM(128, return_sequences=True, activation='tanh')(z)
+
+    z = TD(Dense(64, activation='relu'))(z)
+    z = TD(Dropout(drop))(z)
+    z = TD(Dense(32, activation='relu'))(z)
+    z = TD(Dropout(drop))(z)
+
+    # Steering Categorical
+    angle_out = TD(Dense(31, activation='softmax'),name='angle_out')(z)
+
+    # Throttle
+    throttle_out = TD(Dense(31, activation='softmax'),name='throttle_out')(z)
+
+    # IMU prediction
+    imu_out = TD(Dense(12, activation='linear'), name='imu_out')(z)
+
+    model = Model(inputs=[img_in,imu_in], outputs=[angle_out, throttle_out, imu_out])
 
     return model
