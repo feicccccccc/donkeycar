@@ -1074,7 +1074,7 @@ class Keras_IMU_LSTM_Many2Many_IMUPRED(KerasPilot):
                            loss={'angle_out': 'categorical_crossentropy',
                                  'throttle_out': 'categorical_crossentropy',
                                  'imu_out': 'mean_squared_error' },
-                           loss_weights={'angle_out': 0.5, 'throttle_out': 0.5})
+                           loss_weights={'angle_out': 0.35, 'throttle_out': 0.35}, 'imu_out': 0.3)
 
     def run(self, img_seq, imu_seq):
 
