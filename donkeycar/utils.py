@@ -439,7 +439,8 @@ def get_model_by_type(model_type, cfg):
     given the string model_type and the configuration settings in cfg
     create a Keras model and return it.
     '''
-    from donkeycar.parts.keras import KerasRNN_LSTM, Keras_IMU_LSTM_Categorical, Keras_IMU_LSTM_Linear, KerasBehavioral, \
+    from donkeycar.parts.keras import KerasRNN_LSTM, Keras_IMU_LSTM_Categorical, Keras_IMU_LSTM_Linear, Keras_IMU_LSTM_Many2Many_Categorical \
+        , KerasBehavioral, \
         KerasCategorical, KerasIMU, KerasIMU2, KerasLinear, Keras3D_CNN, \
         KerasLocalizer, KerasLatent
     from donkeycar.parts.tflite import TFLitePilot
@@ -479,6 +480,8 @@ def get_model_by_type(model_type, cfg):
         kl = Keras_IMU_LSTM_Categorical(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, seq_length=cfg.SEQUENCE_LENGTH)
     elif model_type == "rnn_imu_linear":
         kl = Keras_IMU_LSTM_Linear(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, seq_length=cfg.SEQUENCE_LENGTH)
+    elif model_type == "rnn_imu_many2many":
+        kl = Keras_IMU_LSTM_Many2Many_Categorical(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, seq_length=cfg.SEQUENCE_LENGTH)
     elif model_type == "categorical":
         kl = KerasCategorical(input_shape=input_shape, throttle_range=cfg.MODEL_CATEGORICAL_MAX_THROTTLE_RANGE, roi_crop=roi_crop)
     elif model_type == "latent":

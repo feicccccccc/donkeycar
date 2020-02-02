@@ -22,7 +22,7 @@ from tensorflow.python.keras.models import Model, Sequential
 from tensorflow.python.keras.layers import Convolution2D, MaxPooling2D, Reshape, BatchNormalization
 from tensorflow.python.keras.layers import Activation, Dropout, Flatten, Cropping2D, Lambda
 from tensorflow.python.keras.layers.merge import concatenate
-from tensorflow.python.keras.layers import LSTM
+from tensorflow.python.keras.layers import LSTM, RepeatVector
 from tensorflow.python.keras.layers.wrappers import TimeDistributed as TD
 from tensorflow.python.keras.layers import Conv3D, MaxPooling3D, Cropping3D, Conv2DTranspose
 from tensorflow.python.keras.optimizers import Adam
@@ -1029,19 +1029,20 @@ def lstm_imu_many2many_categorical(img_in=(224, 224, 3), imu_in=12, seq_length=7
 
     z = concatenate([x, y])
 
-    z = LSTM(128, return_sequences=True, activation='tanh')(z)
     z = LSTM(128, return_sequences=False, activation='tanh')(z)
+    z = RepeatVector(future_step)(z)
+    z = LSTM(128, return_sequences=True, activation='tanh')(z)
 
-    z = Dense(64, activation='relu')(z)
-    z = Dropout(drop)(z)
-    z = Dense(32, activation='relu')(z)
-    z = Dropout(drop)(z)
+    z = TD(Dense(64, activation='relu'))(z)
+    z = TD(Dropout(drop))(z)
+    z = TD(Dense(32, activation='relu'))(z)
+    z = TD(Dropout(drop))(z)
 
     # Steering Categorical
-    angle_out = Dense(31, activation='softmax', name='angle_out')(z)
+    angle_out = TD(Dense(31, activation='softmax'),name='angle_out')(z)
 
     # Throttle
-    throttle_out = Dense(31, activation='softmax', name='throttle_out')(z)
+    throttle_out = TD(Dense(31, activation='softmax'),name='throttle_out')(z)
 
     model = Model(inputs=[img_in,imu_in], outputs=[angle_out, throttle_out])
 
