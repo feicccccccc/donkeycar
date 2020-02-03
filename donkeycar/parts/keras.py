@@ -23,7 +23,7 @@ from tensorflow.python.keras.layers import Convolution2D, MaxPooling2D, Reshape,
 from tensorflow.python.keras.layers import Activation, Dropout, Flatten, Cropping2D, Lambda
 from tensorflow.python.keras.layers.merge import concatenate
 from tensorflow.python.keras.layers import LSTM, RepeatVector
-from tensorflow.python.keras.layers import CuDNNLSTM
+from tensorflow.python.keras.layers import CuDNNLSTM, CuDNNGRU
 from tensorflow.python.keras.layers.wrappers import TimeDistributed as TD
 from tensorflow.python.keras.layers import Conv3D, MaxPooling3D, Cropping3D, Conv2DTranspose
 from tensorflow.python.keras.optimizers import Adam
@@ -846,10 +846,14 @@ def lstm_imu_categorical(img_in=(224, 224, 3), imu_in=12, seq_length=7):
 
     z = concatenate([x, y])
 
-    # z = LSTM(128, return_sequences=True, activation='tanh')(z)
-    # z = LSTM(128, return_sequences=False, activation='tanh')(z)
-    z = CuDNNLSTM(128, return_sequences=True)(z)
-    z = CuDNNLSTM(128, return_sequences=False)(z)
+    #z = LSTM(128, return_sequences=True, activation='tanh')(z)
+    #z = LSTM(128, return_sequences=False, activation='tanh')(z)
+
+    #z = CuDNNLSTM(128, return_sequences=True)(z)
+    #z = CuDNNLSTM(128, return_sequences=False)(z)
+
+    z = CuDNNGRU(128, return_sequences=True)(z)
+    z = CuDNNGRU(128, return_sequences=False)(z)
 
     z = Dense(64, activation='relu')(z)
     z = Dropout(drop)(z)
