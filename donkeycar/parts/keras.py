@@ -1236,8 +1236,8 @@ def test1(img_in=(224, 224, 3), imu_in=12, seq_length=7):
     y = TD(Dense(32, activation='relu'))(y)
     y = TD(Dropout(drop))(y)
 
-    y = LSTM(32, return_sequences=True, activation='tanh')(y)
-    y = LSTM(32, return_sequences=False, activation='tanh')(y)
+    y = CuDNNLSTM(32, return_sequences=True)(y)
+    y = CuDNNLSTM(32, return_sequences=False)(y)
 
     z = concatenate([x,y])
 
