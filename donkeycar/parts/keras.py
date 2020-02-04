@@ -778,7 +778,7 @@ class Keras_IMU_LSTM_Categorical(KerasPilot):
         self.image_shape = (image_h, image_w, image_d)
         self.seq_length = seq_length
         self.num_imu_input = num_imu_input
-        self.model = lstm_imu_categorical(img_in=(image_w,image_h,image_d),imu_in=num_imu_input)
+        self.model = lstm_imu_categorical(img_in=(image_w,image_h,image_d),imu_in=num_imu_input,seq_length=self.seq_length)
         self.model.optimizer = Adam(lr=0.0001, clipnorm=1.0)
         self.compile()
 
@@ -1207,6 +1207,54 @@ class Keras_Test(KerasPilot):
         print("NN output: ", angle, throttle)
 
         return angle, throttle
+
+def test1(img_in=(224, 224, 3), imu_in=12, seq_length=7):
+
+    drop = 0.3
+    #input_dim = (seq_length,) + img_in
+    input_dim = img_in
+    img_in = Input(shape=input_dim,
+                   name='img_in')  # First layer, input layer, Shape comes from camera.py resolution, RGB
+
+    imu_in = Input(shape=(seq_length, imu_in), name="imu_in")
+
+    x = Convolution2D(24, (5, 5), strides=(2, 2), activation='relu')(img_in)
+    x = Dropout(drop)(x)
+    x = Convolution2D(32, (5, 5), strides=(2, 2), activation='relu')(x)
+    x = Dropout(drop)(x)
+    x = Convolution2D(32, (3, 3), strides=(2, 2), activation='relu')(x)
+    x = Dropout(drop)(x)
+    x = Convolution2D(32, (3, 3), strides=(2, 2), activation='relu')(x)
+    x = Dropout(drop)(x)
+    x = Flatten()(x)
+    x = Dropout(drop)(x)
+    x = Dense(64, activation='relu')(x)
+    x = Dropout(drop)(x)
+
+    y = TD(Dense(32, activation='relu'))(imu_in)
+    y = TD(Dropout(drop))(y)
+    y = TD(Dense(32, activation='relu'))(y)
+    y = TD(Dropout(drop))(y)
+
+    y = CuDNNLSTM(32, return_sequences=True)(y)
+    y = CuDNNLSTM(32, return_sequences=False)(y)
+
+    z = concatenate([x,y])
+
+    z = Dense(64, activation='relu')(z)
+    z = Dropout(drop)(z)
+    z = Dense(32, activation='relu')(z)
+    z = Dropout(drop)(z)
+
+    # Steering Categorical
+    angle_out = Dense(31, activation='softmax', name='angle_out')(z)
+
+    # Throttle
+    throttle_out = Dense(31, activation='softmax', name='throttle_out')(z)
+
+    model = Model(inputs=[img_in,imu_in], outputs=[angle_out, throttle_out])
+
+    return model
 
 def test1(img_in=(224, 224, 3), imu_in=12, seq_length=7):
 
