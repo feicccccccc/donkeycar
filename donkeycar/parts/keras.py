@@ -1328,16 +1328,16 @@ def test2(img_in=(224, 224, 3), imu_in=12, seq_length=7):
 
     z = CuDNNLSTM(64, return_sequences=True)(x)
 
-    z = TD(Dense(64, activation='relu'))(z)
-    z = TD(Dropout(drop))(z)
-    z = TD(Dense(32, activation='relu'))(z)
-    z = TD(Dropout(drop))(z)
+    z = Dense(64, activation='relu')(z)
+    z = Dropout(drop)(z)
+    z = Dense(32, activation='relu')(z)
+    z = TD(Dropout(drop)(z)
 
     # Steering Categorical
-    angle_out = TD(Dense(31, activation='softmax'), name='angle_out')(z)
+    angle_out = Dense(31, activation='softmax', name='angle_out')(z)
 
     # Throttle
-    throttle_out = TD(Dense(31, activation='softmax'), name='throttle_out')(z)
+    throttle_out = Dense(31, activation='softmax', name='throttle_out')(z)
 
     model = Model(inputs=[img_in], outputs=[angle_out, throttle_out])
 
