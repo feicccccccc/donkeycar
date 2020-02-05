@@ -1286,8 +1286,8 @@ def test1(img_in=(224, 224, 3), imu_in=12, seq_length=7):
     y = TD(Dense(32, activation='relu'))(y)
     y = TD(Dropout(drop))(y)
 
-    y = CuDNNLSTM(32, return_sequences=True)(y)
-    y = CuDNNLSTM(32, return_sequences=False)(y)
+    y = CuDNNLSTM(64, return_sequences=True)(y)
+    y = CuDNNLSTM(64, return_sequences=False)(y)
 
     z = concatenate([x,y])
 
@@ -1326,9 +1326,7 @@ def test2(img_in=(224, 224, 3), imu_in=12, seq_length=7):
     x = TD(Dense(64, activation='relu'))(x)
     x = TD(Dropout(drop))(x)
 
-    z = LSTM(128, return_sequences=False, activation='tanh')(z)
-    z = RepeatVector(future_step)(z)
-    z = LSTM(128, return_sequences=True, activation='tanh')(z)
+    z = CuDNNLSTM(64, return_sequences=True)(x)
 
     z = TD(Dense(64, activation='relu'))(z)
     z = TD(Dropout(drop))(z)
