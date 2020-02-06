@@ -22,7 +22,7 @@ from tensorflow.python.keras.models import Model, Sequential
 from tensorflow.python.keras.layers import Convolution2D, MaxPooling2D, Reshape, BatchNormalization
 from tensorflow.python.keras.layers import Activation, Dropout, Flatten, Cropping2D, Lambda
 from tensorflow.python.keras.layers.merge import concatenate
-from tensorflow.python.keras.layers import LSTM, RepeatVector
+from tensorflow.python.keras.layers import LSTM, GRU, RepeatVector
 from tensorflow.python.keras.layers import CuDNNLSTM, CuDNNGRU
 from tensorflow.python.keras.layers.wrappers import TimeDistributed as TD
 from tensorflow.python.keras.layers import Conv3D, MaxPooling3D, Cropping3D, Conv2DTranspose
@@ -852,8 +852,8 @@ def lstm_imu_categorical(img_in=(224, 224, 3), imu_in=12, seq_length=7):
     #z = CuDNNLSTM(128, return_sequences=True)(z)
     #z = CuDNNLSTM(128, return_sequences=False)(z)
 
-    z = CuDNNGRU(128, return_sequences=True)(z)
-    z = CuDNNGRU(128, return_sequences=False)(z)
+    #z = CuDNNGRU(64, return_sequences=True)(z)
+    z = CuDNNGRU(64, return_sequences=False)(z)
 
     z = Dense(64, activation='relu')(z)
     z = Dropout(drop)(z)
@@ -1060,7 +1060,7 @@ class Keras_IMU_LSTM_Many2Many_IMUPRED(KerasPilot):
     LSTM with 7 states
     """
 
-    def __init__(self, image_w =224, image_h=224, image_d=3, seq_length=7, future_step = 5, num_imu_input=12, *args, **kwargs):
+    def __init__(self, image_w =224, image_h=224, image_d=3, seq_length=5, future_step = 3, num_imu_input=12, *args, **kwargs):
         super(Keras_IMU_LSTM_Many2Many_IMUPRED, self).__init__(*args, **kwargs)
         self.image_shape = (image_h, image_w, image_d)
         self.seq_length = seq_length
@@ -1109,7 +1109,7 @@ class Keras_IMU_LSTM_Many2Many_IMUPRED(KerasPilot):
 
         return angle, throttle
 
-def lstm_imu_many2many_imupred(img_in=(224, 224, 3), imu_in=12, seq_length=7, future_step = 3):
+def lstm_imu_many2many_imupred(img_in=(224, 224, 3), imu_in=12, seq_length=5, future_step = 3):
 
     drop = 0.3
     input_dim = (seq_length,) + img_in
@@ -1164,7 +1164,7 @@ class Keras_Test(KerasPilot):
     """
     LSTM with 7 states
     """
-    def __init__(self, image_w =224, image_h=224, image_d=3, seq_length=7, future_step = 5, num_imu_input=12, *args, **kwargs):
+    def __init__(self, image_w =224, image_h=224, image_d=3, seq_length=5, future_step = 3, num_imu_input=12, *args, **kwargs):
         super(Keras_Test, self).__init__(*args, **kwargs)
         self.image_shape = (image_h, image_w, image_d)
         self.seq_length = seq_length
@@ -1210,7 +1210,7 @@ class Keras_Test(KerasPilot):
 
         return angle, throttle
 
-def test1(img_in=(224, 224, 3), imu_in=12, seq_length=7):
+def test1(img_in=(224, 224, 3), imu_in=12, seq_length=5):
 
     drop = 0.3
     #input_dim = (seq_length,) + img_in
@@ -1258,7 +1258,7 @@ def test1(img_in=(224, 224, 3), imu_in=12, seq_length=7):
 
     return model
 
-def test1(img_in=(224, 224, 3), imu_in=12, seq_length=7):
+def test1(img_in=(224, 224, 3), imu_in=12, seq_length=5):
 
     drop = 0.3
     #input_dim = (seq_length,) + img_in
@@ -1306,7 +1306,7 @@ def test1(img_in=(224, 224, 3), imu_in=12, seq_length=7):
 
     return model
 
-def test2(img_in=(224, 224, 3), imu_in=12, seq_length=7):
+def test2(img_in=(224, 224, 3), imu_in=12, seq_length=5):
 
     drop = 0.3
     input_dim = (seq_length,) + img_in
@@ -1326,12 +1326,12 @@ def test2(img_in=(224, 224, 3), imu_in=12, seq_length=7):
     x = TD(Dense(64, activation='relu'))(x)
     x = TD(Dropout(drop))(x)
 
-    z = CuDNNLSTM(64, return_sequences=True)(x)
+    z = GRU(64, return_sequences=False)(x)
 
     z = Dense(64, activation='relu')(z)
     z = Dropout(drop)(z)
     z = Dense(32, activation='relu')(z)
-    z = TD(Dropout(drop)(z)
+    z = Dropout(drop)(z)
 
     # Steering Categorical
     angle_out = Dense(31, activation='softmax', name='angle_out')(z)
