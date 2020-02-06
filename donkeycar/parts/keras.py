@@ -1326,7 +1326,7 @@ def test2(img_in=(224, 224, 3), imu_in=12, seq_length=5):
     x = TD(Dense(64, activation='relu'))(x)
     x = TD(Dropout(drop))(x)
 
-    z = GRU(64, return_sequences=False)(x)
+    z = CuDNNGRU(64, return_sequences=False)(x)
 
     z = Dense(64, activation='relu')(z)
     z = Dropout(drop)(z)
