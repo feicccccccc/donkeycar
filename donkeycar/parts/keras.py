@@ -1234,9 +1234,8 @@ class Keras_Test(KerasPilot):
     def compile(self):
         self.model.compile(optimizer=self.optimizer,
                            loss={'angle_out': 'categorical_crossentropy',
-                                 'throttle_out': 'categorical_crossentropy',
-                                 'imu_out': 'mean_squared_error'},
-                           loss_weights={'angle_out': 1, 'throttle_out': 1, 'imu_out': 2})
+                                 'throttle_out': 'categorical_crossentropy',},
+                           loss_weights={'angle_out': 1, 'throttle_out': 1})
 
     def run(self, img_seq, imu_seq, angle_seq, throttle_seq):
 
@@ -1258,8 +1257,8 @@ class Keras_Test(KerasPilot):
         #print("Raw angle: ", angle_binned, "Shape: ", angle_binned[:,0,:].shape)
         #print('Raw throttle', throttle_binned, "Shape: ", throttle_binned[:,0,:].shape)
 
-        angle = dk.utils.linear_unbin(angle_binned, N=31, offset=-1, R=2)
-        throttle = dk.utils.linear_unbin(throttle_binned, N=31, offset=0, R=0.4)
+        angle = dk.utils.linear_unbin(angle_binned[:,0,:], N=31, offset=-1, R=2)
+        throttle = dk.utils.linear_unbin(throttle_binned[:,0,:], N=31, offset=0, R=0.4)
 
         print("NN output: ", angle, throttle)
 
@@ -1406,8 +1405,8 @@ def test3_allpred(img_in=(224, 224, 3), imu_in=12, seq_length=5, future_step = 3
                    name='img_in')  # First layer, input layer, Shape comes from camera.py resolution, RGB
 
     imu_in = Input(shape=(seq_length, imu_in), name="imu_in")
-    steer_in = Input(shape=(seq_length, 1), name="steer_in")
-    throttle_in = Input(shape=(seq_length, 1), name="angle_in")
+    steer_in = Input(shape=(seq_length, 31), name="steer_in")
+    throttle_in = Input(shape=(seq_length, 31), name="angle_in")
 
     x = TD(Convolution2D(24, (5, 5), strides=(2, 2), activation='relu'))(img_in)
     x = TD(Dropout(drop))(x)
@@ -1454,6 +1453,6 @@ def test3_allpred(img_in=(224, 224, 3), imu_in=12, seq_length=5, future_step = 3
     # Throttle
     throttle_out = TD(Dense(31, activation='softmax'),name='throttle_out')(z)
 
-    model = Model(inputs=[img_in, imu_in, steer_in, throttle_in], outputs=[angle_out, throttle_out, imu_out])
+    model = Model(inputs=[img_in, imu_in, steer_in, throttle_in], outputs=[angle_out, throttle_out])
 
     return model
