@@ -1066,7 +1066,7 @@ class Keras_IMU_LSTM_Many2Many_IMUPRED(KerasPilot):
         self.seq_length = seq_length
         self.future_step = future_step
         self.num_imu_input = num_imu_input
-        self.model = lstm_imu_many2many_imupred(img_in = self.image_shape,
+        self.model = lstm_imu_many2many_imu_pred(img_in = self.image_shape,
                                                 imu_in = self.num_imu_input,
                                                 seq_length = self.seq_length,
                                                 future_step = self.future_step
@@ -1100,8 +1100,8 @@ class Keras_IMU_LSTM_Many2Many_IMUPRED(KerasPilot):
         #print("Raw angle: ", angle_binned, "Shape: ", angle_binned[:,0,:].shape)
         #print('Raw throttle', throttle_binned, "Shape: ", throttle_binned[:,0,:].shape)
 
-        angle = dk.utils.linear_unbin(angle_binned, N=31, offset=-1, R=2)
-        throttle = dk.utils.linear_unbin(throttle_binned, N=31, offset=0, R=0.4)
+        angle = dk.utils.linear_unbin(angle_binned[:,0,:], N=31, offset=-1, R=2)
+        throttle = dk.utils.linear_unbin(throttle_binned[:,0,:], N=31, offset=0, R=0.4)
 
         print("NN output: ", angle, throttle)
         print("current imu: ", imu_seq)
@@ -1109,7 +1109,58 @@ class Keras_IMU_LSTM_Many2Many_IMUPRED(KerasPilot):
 
         return angle, throttle
 
-def lstm_imu_many2many_imupred(img_in=(224, 224, 3), imu_in=12, seq_length=5, future_step = 3):
+def lstm_imu_many2many_imu_pred(img_in=(224, 224, 3), imu_in=12, seq_length=5, future_step = 3):
+
+    drop = 0.3
+    input_dim = (seq_length,) + img_in
+    img_in = Input(shape=input_dim,
+                   name='img_in')  # First layer, input layer, Shape comes from camera.py resolution, RGB
+
+    imu_in = Input(shape=(seq_length, imu_in), name="imu_in")
+
+    x = TD(Convolution2D(24, (5, 5), strides=(2, 2), activation='relu'))(img_in)
+    x = TD(Dropout(drop))(x)
+    x = TD(Convolution2D(32, (5, 5), strides=(2, 2), activation='relu'))(x)
+    x = TD(Dropout(drop))(x)
+    x = TD(Convolution2D(32, (3, 3), strides=(2, 2), activation='relu'))(x)
+    x = TD(Dropout(drop))(x)
+    x = TD(Convolution2D(32, (3, 3), strides=(2, 2), activation='relu'))(x)
+    x = TD(Dropout(drop))(x)
+    x = TD(Flatten())(x)
+    x = TD(Dropout(drop))(x)
+    x = TD(Dense(64, activation='relu'))(x)
+    x = TD(Dropout(drop))(x)
+
+    y = TD(Dense(14, activation='relu'))(imu_in)
+    y = TD(Dropout(drop))(y)
+    y = TD(Dense(14, activation='relu'))(y)
+    y = TD(Dropout(drop))(y)
+
+    z = concatenate([x, y])
+
+    z = CuDNNGRU(64, return_sequences=False)(z)
+    z = RepeatVector(future_step)(z)
+    z = CuDNNGRU(64, return_sequences=True)(z)
+
+    # IMU prediction
+    imu_out = TD(Dense(12, activation='linear'), name='imu_out')(z)
+
+    z = TD(Dense(64, activation='relu'))(z)
+    z = TD(Dropout(drop))(z)
+    z = TD(Dense(32, activation='relu'))(z)
+    z = TD(Dropout(drop))(z)
+
+    # Steering Categorical
+    angle_out = Dense(31, activation='softmax',name='angle_out')(z)
+
+    # Throttle
+    throttle_out = Dense(31, activation='softmax',name='throttle_out')(z)
+
+    model = Model(inputs=[img_in,imu_in], outputs=[angle_out, throttle_out, imu_out])
+
+    return model
+
+def lstm_imu_many2many_imu_pred(img_in=(224, 224, 3), imu_in=12, seq_length=5, future_step = 3):
 
     drop = 0.3
     input_dim = (seq_length,) + img_in
@@ -1170,10 +1221,11 @@ class Keras_Test(KerasPilot):
         self.seq_length = seq_length
         self.future_step = future_step
         self.num_imu_input = num_imu_input
-        self.model = test2(img_in = self.image_shape,
-                           imu_in = self.num_imu_input,
-                           seq_length = self.seq_length,
-                           )
+        self.model = test3_allpred(img_in = self.image_shape,
+                                   imu_in = self.num_imu_input,
+                                   seq_length = self.seq_length,
+                                   future_step = self.future_step
+                                   )
         self.model.optimizer = Adam(lr=0.0001, clipnorm=1.0)
         self.compile()
 
@@ -1183,10 +1235,10 @@ class Keras_Test(KerasPilot):
         self.model.compile(optimizer=self.optimizer,
                            loss={'angle_out': 'categorical_crossentropy',
                                  'throttle_out': 'categorical_crossentropy',
-                                 },
-                           loss_weights={'angle_out': 0.5, 'throttle_out': 0.5})
+                                 'imu_out': 'mean_squared_error'},
+                           loss_weights={'angle_out': 1, 'throttle_out': 1, 'imu_out': 2})
 
-    def run(self, img_seq, imu_seq):
+    def run(self, img_seq, imu_seq, angle_seq, throttle_seq):
 
         # Hack to get lane segmentation
         #img_seq = segment_lane(img_seq)
@@ -1197,8 +1249,11 @@ class Keras_Test(KerasPilot):
         #print(imu_seq.shape)
 
         img_seq = img_seq.reshape(1, img_seq.shape[0], img_seq.shape[1], img_seq.shape[2])
-        imu_seq = imu_seq.reshape(1, imu_seq.shape[0],imu_seq.shape[1])
-        angle_binned, throttle_binned = self.model.predict([img_seq,imu_seq])
+        imu_seq = imu_seq.reshape(1, imu_seq.shape[0], imu_seq.shape[1])
+        angle_seq = angle_seq.reshape(1, angle_seq.shape[0], angle_seq.shape[1])
+        throttle_seq = throttle_seq.reshape(1, throttle_seq.shape[0], throttle_seq.shape[1])
+
+        angle_binned, throttle_binned = self.model.predict([img_seq,imu_seq,angle_seq,throttle_seq])
 
         #print("Raw angle: ", angle_binned, "Shape: ", angle_binned[:,0,:].shape)
         #print('Raw throttle', throttle_binned, "Shape: ", throttle_binned[:,0,:].shape)
@@ -1306,7 +1361,7 @@ def test1(img_in=(224, 224, 3), imu_in=12, seq_length=5):
 
     return model
 
-def test2(img_in=(224, 224, 3), imu_in=12, seq_length=5):
+def test2_noimu(img_in=(224, 224, 3), imu_in=12, seq_length=5):
 
     drop = 0.3
     input_dim = (seq_length,) + img_in
@@ -1340,5 +1395,65 @@ def test2(img_in=(224, 224, 3), imu_in=12, seq_length=5):
     throttle_out = Dense(31, activation='softmax', name='throttle_out')(z)
 
     model = Model(inputs=[img_in], outputs=[angle_out, throttle_out])
+
+    return model
+
+def test3_allpred(img_in=(224, 224, 3), imu_in=12, seq_length=5, future_step = 3):
+
+    drop = 0.3
+    input_dim = (seq_length,) + img_in
+    img_in = Input(shape=input_dim,
+                   name='img_in')  # First layer, input layer, Shape comes from camera.py resolution, RGB
+
+    imu_in = Input(shape=(seq_length, imu_in), name="imu_in")
+    steer_in = Input(shape=(seq_length, 1), name="steer_in")
+    throttle_in = Input(shape=(seq_length, 1), name="angle_in")
+
+    x = TD(Convolution2D(24, (5, 5), strides=(2, 2), activation='relu'))(img_in)
+    x = TD(Dropout(drop))(x)
+    x = TD(Convolution2D(32, (5, 5), strides=(2, 2), activation='relu'))(x)
+    x = TD(Dropout(drop))(x)
+    x = TD(Convolution2D(32, (3, 3), strides=(2, 2), activation='relu'))(x)
+    x = TD(Dropout(drop))(x)
+    x = TD(Convolution2D(32, (3, 3), strides=(2, 2), activation='relu'))(x)
+    x = TD(Dropout(drop))(x)
+    x = TD(Flatten())(x)
+    x = TD(Dropout(drop))(x)
+    x = TD(Dense(64, activation='relu'))(x)
+    x = TD(Dropout(drop))(x)
+
+    y = TD(Dense(14, activation='relu'))(imu_in)
+    y = TD(Dropout(drop))(y)
+    y = TD(Dense(14, activation='relu'))(y)
+    y = TD(Dropout(drop))(y)
+
+    w = concatenate([steer_in, throttle_in])
+    w = TD(Dense(14, activation='relu'))(w)
+    w = TD(Dropout(drop))(w)
+    w = TD(Dense(14, activation='relu'))(w)
+    w = TD(Dropout(drop))(w)
+
+    z = concatenate([x, y, w])
+
+    z = GRU(64, return_sequences=False)(z)
+    z = RepeatVector(future_step)(z)
+    z = GRU(64, return_sequences=True)(z)
+
+    z = TD(Dense(64, activation='relu'))(z)
+    z = TD(Dropout(drop))(z)
+
+    # IMU prediction
+    imu_out = TD(Dense(12, activation='linear'), name='imu_out')(z)
+
+    z = TD(Dense(32, activation='relu'))(z)
+    z = TD(Dropout(drop))(z)
+
+    # Steering Categorical
+    angle_out = TD(Dense(31, activation='softmax'),name='angle_out')(z)
+
+    # Throttle
+    throttle_out = TD(Dense(31, activation='softmax'),name='throttle_out')(z)
+
+    model = Model(inputs=[img_in, imu_in, steer_in, throttle_in], outputs=[angle_out, throttle_out, imu_out])
 
     return model
