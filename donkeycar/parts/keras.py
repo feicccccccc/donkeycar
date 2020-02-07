@@ -1435,9 +1435,9 @@ def test3_allpred(img_in=(224, 224, 3), imu_in=12, seq_length=5, future_step = 3
 
     z = concatenate([x, y, w])
 
-    z = GRU(64, return_sequences=False)(z)
+    z = CuDNNGRU(64, return_sequences=False)(z)
     z = RepeatVector(future_step)(z)
-    z = GRU(64, return_sequences=True)(z)
+    z = CuDNNGRU(64, return_sequences=True)(z)
 
     z = TD(Dense(64, activation='relu'))(z)
     z = TD(Dropout(drop))(z)
